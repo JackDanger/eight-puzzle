@@ -30,8 +30,8 @@
              " | "
              (cell puzzle (+ 1 (* 3 (Math/floor (/ n 2)))))
              " | "
-             (cell puzzle (+ 2 (* 3 (Math/floor (/ n 2)))))))))
-             " |"
+             (cell puzzle (+ 2 (* 3 (Math/floor (/ n 2)))))
+             " |"))))
   (redraw))
 
 (def p1 [8 3 7 9 1 2 4 0 6])
