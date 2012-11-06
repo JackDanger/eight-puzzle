@@ -49,6 +49,15 @@
                 [x y])
              p))))
 
+(defn plist [s]
+  "
+  Takes a state and returns the 9 digits of the
+  puzzle cell values in order.
+  "
+  (let [p (:puzzle s)]
+    (for [y (range 3)
+          x (range 3)] (p [x y]))))
+
 (def solution (puzzle (range 9)))
 (def solution-positions (into {} (map (fn [[k v]] [v k]) solution)))
 (defn final-pos [v]
@@ -70,6 +79,10 @@
        (manhattan-distance c (final-pos v)))))
 
 (defn branch [state dir]
+  (try
+    ((first (filter (fn [[pos v]] (zero? v)) (:puzzle state))) 0)
+    (catch Exception e (println e (count state) (:path state))))
+
   (let [puzzle (:puzzle state)
         blank-pos ((first (filter (fn [[pos v]] (zero? v)) puzzle)) 0)
         blankx (blank-pos 0)
@@ -93,25 +106,34 @@
           (for [dir [:up :down :left :right]]
                (branch state dir))))
 
-(defn solve [state frontier visited]
-  (println (g state) (h state) (count frontier) (count visited))
-  (if (contains? visited (:puzzle state))
-    nil
-    (if (= solution (:puzzle state))
-      [state]
-      (let [bs (branches state)
-            unvisited-branches (filter (fn [p] (not (contains? visited p))) (map :puzzle bs))
-            next-branch (first unvisited-branches)]
-        #(solve (or next-branch (first frontier))
-                (conj frontier (rest unvisited-branches))
-                (conj visited state))))))
+(defn search [state frontier visited]
+  (let [bs          (branches state)
+        unvisited   (filter (fn [s] (not (contains? visited (plist s)))) bs)
+        next-frontier (concat frontier unvisited)]
+    [(first next-frontier)
+     (rest next-frontier)
+     (conj visited (plist state))]))
+
+(defn solve [start]
+  (loop [state    start
+         frontier '()
+         visited  #{}]
+    (let [[state# frontier# visited#] (search state frontier visited)]
+      (if (= 0 (mod (count frontier) 100))
+        (println "frontier:" (count frontier)
+                 "visited:" (count visited)
+                 "path length: " (count (:path state))))
+      (if (= solution (:puzzle state#))
+          state#
+          (if state#
+            (recur state# frontier# visited#)
+            "not found")))))
 
 (def p1 (puzzle [8 3 7 5 1 2 4 0 6]))
 (def s1 (->State p1 '()))
 
 (defn -main [& args]
-  (println p1)
-  (println (trampoline (solve s1 '() #{}))))
+  (println (solve s1)))
   ;(s/in-screen scr
     ;(display p1)
     ;(s/get-key-blocking scr)))
