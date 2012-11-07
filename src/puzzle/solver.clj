@@ -1,5 +1,6 @@
 (ns puzzle.solver
-  (:gen-class))
+  (:gen-class)
+  (:require [clojure.data.priority-map]))
   ;(:require [lanterna.screen :as s]))
 
 ;(def scr (s/get-screen :swing))
@@ -60,9 +61,8 @@
 
 (def solution (puzzle (range 9)))
 (def solution-positions (into {} (map (fn [[k v]] [v k]) solution)))
-(defn final-pos [v]
-  (get solution-positions v))
 
+(def visited (java.util.PriorityQueue. 1000000 (comparator (fn[a b](< (a 1)(b 1))))))
 
 (defn manhattan-distance [[x1 y1] [x2 y2]]
   (+ (abs (- x1 x2))
@@ -76,13 +76,17 @@
   "The cost of solving this puzzle, under ideal conditions"
   (reduce +
      (for [[c v] (:puzzle state)]
-       (manhattan-distance c (final-pos v)))))
+       (manhattan-distance c (get solution-positions v)))))
+
+(defn f [state]
+  "
+  The cost of getting into this state plus the cost
+  of reaching our goal from this state (optimistically).
+  This implements the A* search.
+  "
+  (+ (g state) (h state)))
 
 (defn branch [state dir]
-  (try
-    ((first (filter (fn [[pos v]] (zero? v)) (:puzzle state))) 0)
-    (catch Exception e (println e (count state) (:path state))))
-
   (let [puzzle (:puzzle state)
         blank-pos ((first (filter (fn [[pos v]] (zero? v)) puzzle)) 0)
         blankx (blank-pos 0)
@@ -106,23 +110,23 @@
           (for [dir [:up :down :left :right]]
                (branch state dir))))
 
-(defn search [state frontier visited]
-  (let [bs          (branches state)
-        unvisited   (filter (fn [s] (not (contains? visited (plist s)))) bs)
-        next-frontier (concat frontier unvisited)]
-    [(first next-frontier)
-     (rest next-frontier)
+(defn search [state frontier]
+  (let [next-frontier (reduce conj frontier (map (fn [b] [b (f b)]) (branches state)))
+        next-state ((first next-frontier) 0)]
+    [next-state
+     (pop next-frontier)
      (conj visited (plist state))]))
 
 (defn solve [start]
   (loop [state    start
-         frontier '()
+         frontier (clojure.data.priority-map/priority-map)
          visited  #{}]
-    (let [[state# frontier# visited#] (search state frontier visited)]
+    (let [[state# frontier#] (search state frontier)]
       (if (= 0 (mod (count frontier) 100))
         (println "frontier:" (count frontier)
-                 "visited:" (count visited)
-                 "path length: " (count (:path state))))
+                 "visited:" (.size visited)
+                 "path length: " (count (:path state))
+                 "head cost: " (f state)))
       (if (= solution (:puzzle state#))
           state#
           (if state#
