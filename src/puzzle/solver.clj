@@ -62,8 +62,6 @@
 (def solution (puzzle (range 9)))
 (def solution-positions (into {} (map (fn [[k v]] [v k]) solution)))
 
-(def visited (java.util.PriorityQueue. 1000000 (comparator (fn[a b](< (a 1)(b 1))))))
-
 (defn manhattan-distance [[x1 y1] [x2 y2]]
   (+ (abs (- x1 x2))
      (abs (- y1 y2))))
@@ -85,6 +83,9 @@
   This implements the A* search.
   "
   (+ (g state) (h state)))
+
+(def pq-comparator (comparator (fn [a b] (< (a 1) (b 1)))))
+(def frontier (java.util.PriorityQueue. 10000 pq-comparator))
 
 (defn branch [state dir]
   (let [puzzle (:puzzle state)
@@ -110,34 +111,37 @@
           (for [dir [:up :down :left :right]]
                (branch state dir))))
 
-(defn search [state frontier]
-  (let [next-frontier (reduce conj frontier (map (fn [b] [b (f b)]) (branches state)))
-        next-state ((first next-frontier) 0)]
-    [next-state
-     (pop next-frontier)
-     (conj visited (plist state))]))
+(defn search [state visited]
+  (let [bs (filter #(not (contains? visited (plist %))) (branches state))]
+    ; add all new branches to the frontier
+    (dorun (for [b bs] (.add frontier [b (f b)])))
+    (if (< 0 (.size frontier))
+      [((.remove frontier) 0)
+       (conj visited (plist state))])))
 
 (defn solve [start]
   (loop [state    start
-         frontier (clojure.data.priority-map/priority-map)
          visited  #{}]
-    (let [[state# frontier#] (search state frontier)]
-      (if (= 0 (mod (count frontier) 100))
-        (println "frontier:" (count frontier)
-                 "visited:" (.size visited)
-                 "path length: " (count (:path state))
-                 "head cost: " (f state)))
+    (let [[state# visited#] (search state visited)]
       (if (= solution (:puzzle state#))
-          state#
+          (println state# "\nsolved in" (g state#) "steps")
           (if state#
-            (recur state# frontier# visited#)
-            "not found")))))
+            (recur state# visited#)
+            (str "not found in " (count visited) "nodes"))))))
 
-(def p1 (puzzle [8 3 7 5 1 2 4 0 6]))
+(def p1 (puzzle [5 3 7 8 1 2 4 0 6]))
 (def s1 (->State p1 '()))
 
+(defn solveable [n-steps]
+  (loop [n n-steps
+         s (->State solution '())]
+    (if (zero? n) s
+      (let [bs (branches s)
+            which (int (Math/floor (* (rand) (count bs))))]
+        (recur (dec n)
+               (nth bs which))))))
+
 (defn -main [& args]
-  (println (solve s1)))
-  ;(s/in-screen scr
-    ;(display p1)
-    ;(s/get-key-blocking scr)))
+  (dorun (for [n (range 10)] (time (println (solve (solveable 1700))))))
+  (time (println (solve (solveable 1700)))))
+  (time (println (solve s1)))
