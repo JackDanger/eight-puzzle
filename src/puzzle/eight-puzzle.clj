@@ -1,4 +1,4 @@
-(ns puzzle.solver (:gen-class))
+(ns puzzle.eight-puzzle (:gen-class))
 
 (def size 3); change to 4 to do a 15 puzzle
 
