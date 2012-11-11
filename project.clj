@@ -9,4 +9,5 @@
   :plugins [[speclj "2.1.2"]]
   :test-paths ["spec/"]
   :gen-class true
-  :main puzzle.solver)
+  :aot [puzzle.eight-puzzle]
+  :main puzzle.eight-puzzle)
