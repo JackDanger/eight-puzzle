@@ -1,6 +1,6 @@
 (ns puzzle.eight-puzzle (:gen-class))
 
-(def size 4); change to 4 to do a 15 puzzle
+(def size 3); change to 4 to do a 15 puzzle
 
 (defn abs [n]
   (if (< 0 n) n (- n)))
@@ -87,10 +87,10 @@
 
 (defn search [state visited]
   (let [bs (filter #(not (contains? visited (plist %))) (branches state))]
-    ; add all new branches to the frontier
     (if
       (zero? (mod (.size frontier) 150))
       (println (.size frontier) (if-let [f (.peek frontier)] (f 1))))
+    ; add all new branches to the frontier
     (dorun (for [b bs] (.add frontier [b (f b)])))
     (if (not (zero? (.size frontier)))
       [((.remove frontier) 0)
