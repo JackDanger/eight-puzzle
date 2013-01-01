@@ -1,11 +1,5 @@
 require 'set'
 
-def coords index
-  # turn a 0-8 index into the x,y coordinates
-  # of a 3x3 grid
-  [index % 3, (index / 3).to_i]
-end
-
 class State
   Directions = [:left, :right, :up, :down]
 
@@ -23,23 +17,24 @@ class State
     Directions.map do |dir|
       cell = branch_toward dir
       State.new puzzle.swap(cell), @path << dir if cell
-    end.compact
+    end.compact.shuffle
   end
 
   private
 
   def branch_toward direction
     blank_position = puzzle.zero_position
-    blankx, blanky = coords blank_position
+    blankx = blank_position % 3
+    blanky = (blank_position / 3).to_i
     case direction
     when :left
       blank_position - 1 unless 0 == blankx
     when :right
-      blank_position + 1 unless 3 == blankx
+      blank_position + 1 unless 2 == blankx
     when :up
       blank_position - 3 unless 0 == blanky
     when :down
-      blank_position + 3 unless 3 == blanky
+      blank_position + 3 unless 2 == blanky
     end
   end
 end
@@ -89,4 +84,6 @@ def solve puzzle
   state
 end
 
-p solve(Puzzle.new [1, 4, 2, 3, 0, 5, 6, 7, 8])
+p solve(Puzzle.new [1, 4, 2,
+                    3, 0, 5,
+                    6, 7, 8])
