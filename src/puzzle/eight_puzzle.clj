@@ -7,32 +7,12 @@
 
 (defrecord State [puzzle path])
 
-(defn puzzle [p]
-  "
-  Takes a vector/list of (size*size)digits and
-  returns a map where the keys are the cartesian
-  coordinates and the values are the
-  corresponding cell contents.
-  "
-  (apply assoc
-         (cons {}
-           (interleave
-             (for [y (range size)
-                   x (range size)]
-                [x y])
-             p))))
+(def solution (vec (range (* size size))))
 
-(defn plist [s]
-  "
-  Takes a state and returns the (size*size) digits of the
-  puzzle cell values in order.
-  "
-  (let [p (:puzzle s)]
-    (for [y (range size)
-          x (range size)] (p [x y]))))
-
-(def solution (puzzle (range (* size size))))
-(def solution-positions (into {} (map (fn [[k v]] [v k]) solution)))
+(defn coords [idx]
+  "Return the x and y coordinates in a puzzle for the given index"
+  [(mod idx size)
+   (int (Math/floor (/ idx size)))])
 
 (defn manhattan-distance [[x1 y1] [x2 y2]]
   (+ (abs (- x1 x2))
@@ -44,9 +24,11 @@
 
 (defn h [state]
   "The cost of solving this puzzle, under ideal conditions"
-  (reduce +
-     (for [[c v] (:puzzle state)]
-       (manhattan-distance c (get solution-positions v)))))
+  (let [puzzle (:puzzle state)]
+    (reduce +
+      (for [idx (range (* size size))]
+        (manhattan-distance (coords idx)
+                            (coords (nth puzzle idx)))))))
 
 (defn f [state]
   "
@@ -60,23 +42,24 @@
 (def frontier (java.util.PriorityQueue. 1000000 pq-comparator))
 
 (defn branch [state dir]
-  (let [puzzle (:puzzle state)
-        blank-pos ((first (filter (fn [[pos v]] (zero? v)) puzzle)) 0)
-        blankx (blank-pos 0)
-        blanky (blank-pos 1)
+  (let [puzzle (vec (:puzzle state))
+        ; The 0 position == the number of elements that appear before 0
+        blank-pos (count (take-while (comp not zero?) puzzle))
+        blankx (first (coords blank-pos))
+        blanky (last  (coords blank-pos))
         min 0
         max (dec size)
         [impossible swap]
           (case dir
-            :left  [(= min (blank-pos 0)) [(dec blankx) blanky]]
-            :right [(= max (blank-pos 0)) [(inc blankx) blanky]]
-            :up    [(= min (blank-pos 1)) [blankx (dec blanky)]]
-            :down  [(= max (blank-pos 1)) [blankx (inc blanky)]])]
+            :left  [(= min blankx) (dec blank-pos)]
+            :right [(= max blankx) (inc blank-pos)]
+            :up    [(= min blanky) (- blank-pos size)]
+            :down  [(= max blanky) (+ blank-pos size)])]
     (if impossible
       nil
-      (->State (assoc puzzle
-                      blank-pos (puzzle swap)
-                      swap 0)
+      (->State (-> puzzle
+                     (assoc blank-pos (puzzle swap))
+                     (assoc swap 0))
                (conj (:path state) dir)))))
 
 (defn branches [state]
@@ -86,28 +69,28 @@
                (branch state dir))))
 
 (defn search [state visited]
-  (let [bs (filter #(not (contains? visited (plist %))) (branches state))]
-    (if
-      (zero? (mod (.size frontier) 150))
-      (println (.size frontier) (if-let [f (.peek frontier)] (f 1))))
+  (let [bs (filter #(not (contains? visited (:puzzle %))) (branches state))]
+    ;(if
+    ;  (zero? (mod (.size frontier) 150))
+    ;  (println (.size frontier) (if-let [f (.peek frontier)] (f 1))))
     ; add all new branches to the frontier
     (dorun (for [b bs] (.add frontier [b (f b)])))
     (if (not (zero? (.size frontier)))
       [((.remove frontier) 0)
-       (apply conj visited (plist state) (map plist bs))])))
+       (apply conj visited (:puzzle state) (map :puzzle bs))])))
 
 (defn solve [start]
   (loop [state    start
          visited  #{}]
-    (let [[state# visited#] (search state visited)]
-      (if (= solution (:puzzle state#))
-          (println state# "\nsolved in" (g state#) "steps")
+    (if (= solution (:puzzle state))
+      (println (:puzzle start) "\nsolved in" (g state) "steps:" (:path state))
+      (let [[state# visited#] (search state visited)]
           (if state#
             (recur state# visited#)
             (str "not found in " (count visited) "nodes"))))))
 
-(def p8a  (puzzle [5 3 7 8 1 2 4 0 6]))
-(def p15a (puzzle [5 4 7 8 14 13 12 11 1 2 3 0 10 15 9 6]))
+(def p8a  [5 3 7 8 1 2 4 0 6])
+(def p15a [5 4 7 8 14 13 12 11 1 2 3 0 10 15 9 6])
 (def s15 (->State p15a '()))
 
 (defn solveable [n-steps]
@@ -120,4 +103,4 @@
                (nth bs which))))))
 
 (defn -main [& args]
-  (dorun (for [n (range 10)] (time (println (solve (solveable (Integer/parseInt (first args)))))))))
+  (dorun (for [n (range 10)] (time (solve (solveable (Integer/parseInt (first args))))))))
