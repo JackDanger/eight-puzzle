@@ -12,7 +12,7 @@
 (defn coords [idx]
   "Return the x and y coordinates in a puzzle for the given index"
   [(mod idx size)
-   (int (Math/floor (/ idx size)))])
+   (int (/ idx size))])
 
 (defn manhattan-distance [[x1 y1] [x2 y2]]
   (+ (abs (- x1 x2))
