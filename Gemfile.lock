@@ -1,0 +1,9 @@
+GEM
+  specs:
+    PriorityQueue (0.1.2)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  PriorityQueue
