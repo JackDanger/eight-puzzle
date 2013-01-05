@@ -1,13 +1,7 @@
-# eight-puzzle
+# Eight-puzzle
 
-FIXME: write description
+Reference implementations in Clojure and Ruby.
 
-## Usage
+Full explanation here: [Graph Traversal: solving the 8-puzzle with basic A.I.](http://6brand.com/solving-8-puzzle-with-artificial-intelligence.html)
 
-FIXME: write
-
-## License
-
-Copyright (C) 2012 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
+© [Jack Danger](http://jackcanty.com)
