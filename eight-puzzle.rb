@@ -1,5 +1,8 @@
 require 'benchmark'
 require 'set'
+# add 'PriorityQueue' to your C-Ruby Gemfile
+require 'priority_queue'
+
 
 class State
   Directions = [:left, :right, :up, :down]
@@ -76,10 +79,6 @@ class Puzzle
   end
 end
 
-
-# add 'PriorityQueue' to your C-Ruby Gemfile
-require 'priority_queue'
-
 class State
   def cost                           # The cost is pretty simple to calculate here.
     h + path.size                    # The path contains all the steps, in order that we
@@ -91,7 +90,7 @@ end
 
 def search state
   @visited << state.puzzle.cells
-  branches = state.branches.reject do |branch|
+  state.branches.reject do |branch|
     @visited.include? branch.puzzle.cells
   end.each do |branch|
     @frontier.push branch, branch.cost
