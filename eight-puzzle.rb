@@ -8,6 +8,7 @@
 require 'benchmark'
 require 'set'
 require 'delegate'
+require 'timeout'
 require 'priority_queue'
 
 class Puzzle
@@ -57,7 +58,6 @@ class Algorithm
 
   def initialize
     @visited = Set.new
-    @frontier = self.class::Queue.new
   end
 
   def search state
@@ -70,8 +70,12 @@ class Algorithm
   end
 
   def solve puzzle
-    state = self.class::State.new puzzle
+    @frontier = self.class::Queue.new
+    state     = self.class::State.new puzzle
     loop {
+      if visited.size % 3000 == 0
+        puts "nodes visited: #{visited.size}"
+      end
       break if state.solution?
       search state
       state = frontier.pop
@@ -148,13 +152,23 @@ class RecursiveDepthFirst < Algorithm
   rescue SystemStackError => error
     throw :blown_stack, [error, depth]
   end
+end
+
+class DepthFirst < Algorithm
+  def solve puzzle
+    Timeout.timeout(60) { super }
+  rescue Timeout::Error
+    puts " --> explored #{visited.size} nodes"
+    puts "     left #{frontier.size} unexplored nodes"
+    puts "     timed out after 60 seconds"
+  end
 
   class Queue < DelegateClass(Array)
     def initialize
       super []
     end
 
-    def pop
+    def pop # this is a LIFO stack
       shift # remove front element
     end
 
@@ -170,7 +184,7 @@ class BreadthFirst < Algorithm
       super []
     end
 
-    def pop
+    def pop # this is a FIFO queue
       shift # remove front element
     end
 
@@ -235,6 +249,8 @@ class AStarSearch < Algorithm
     end
   end
 end
+
+
 
 
 # Generate a solveable starting puzzle
