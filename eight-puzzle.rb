@@ -1,9 +1,14 @@
+# Sliding-block puzzle solver
+#
+# This code is the companion to the tutorial at:
+# http://6brand.com/solving-8-puzzle-with-artificial-intelligence.html
+#
+# Send questions and comments to Jack Danger (http://jåck.com)
+#
 require 'benchmark'
 require 'set'
 require 'delegate'
-# add 'PriorityQueue' to your C-Ruby Gemfile
 require 'priority_queue'
-
 
 class Puzzle
 
@@ -57,9 +62,6 @@ class Algorithm
 
   def search state
     visited << state.puzzle.cells
-    if visited.size % 5000 == 0
-      puts "  visited: #{visited.size}"
-    end
     state.branches.reject do |branch|
       visited.include? branch.puzzle.cells
     end.each do |branch|
@@ -130,8 +132,10 @@ class RecursiveDepthFirst < Algorithm
     error, depth = catch :blown_stack do
       solved = recurse self.class::State.new(puzzle)
     end
-    puts " --> recursed #{depth} times"
-    p error
+    if error
+      puts " --> recursed #{depth} times"
+      puts "     Failed with #{error}"
+    end
     solved
   end
 
@@ -178,8 +182,10 @@ end
 
 class UniformCostSearch < Algorithm
   class Queue < DelegateClass(PriorityQueue)
-    def initialize
+    def initialize(*args)
       super PriorityQueue.new
+    rescue ArgumentError # Rubinius doesn't do DelegateClass#super right
+      @_dc_obj = PriorityQueue.new
     end
 
     def pop
@@ -202,6 +208,8 @@ class AStarSearch < Algorithm
   class Queue < DelegateClass(PriorityQueue)
     def initialize
       super PriorityQueue.new
+    rescue ArgumentError # Rubinius doesn't do DelegateClass#super right
+      @_dc_obj = PriorityQueue.new
     end
 
     def pop
@@ -247,6 +255,7 @@ end
 
 path = [:up, :up, :right, :down, :right, :down, :left, :left, :up, :up, :right, :down, :down, :right, :up, :left, :down, :left, :up, :up]
 root = solveable(path)
+
 Algorithm.subclasses.each do |klass|
   puts klass
   algorithm = klass.new
@@ -257,9 +266,7 @@ Algorithm.subclasses.each do |klass|
     found = solution.path if solution
   end
   next unless found
-  puts "  found in : #{timing.inspect}"
-  puts "  given a #{path.size}-step seed"
-  puts "  we found a matching #{found.size}-step path"
+  puts "  found in : #{"%0.4f" % timing.utime} seconds"
   puts "  we checked: #{algorithm.visited.size} states"
   puts "  we generated: #{algorithm.frontier.length} as-yet-unexplored states"
 end
