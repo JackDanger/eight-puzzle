@@ -58,6 +58,7 @@ class Algorithm
 
   def initialize
     @visited = Set.new
+    @frontier = self.class::Queue.new
   end
 
   def search state
@@ -69,15 +70,17 @@ class Algorithm
     end
   end
 
+  def progress!
+   progress "nodes visited: #{visited.size}"
+  end
+
   def solve puzzle
-    @frontier = self.class::Queue.new
-    state     = self.class::State.new puzzle
+    state = self.class::State.new puzzle
     loop {
-      if visited.size % 3000 == 0
-        puts "nodes visited: #{visited.size}"
-      end
+      progress!
       break if state.solution?
       search state
+      return if frontier.length == 0
       state = frontier.pop
     }
     state
@@ -89,6 +92,12 @@ class Algorithm
 
   def self.subclasses
     @subclasses ||= []
+  end
+
+  def progress str
+    print "\r"
+    print str
+    STDOUT.flush
   end
 
   class State
@@ -131,6 +140,8 @@ class Algorithm
 end
 
 class RecursiveDepthFirst < Algorithm
+  Queue = Array # this will not be unused
+
   def solve puzzle
     solved = nil
     error, depth = catch :blown_stack do
@@ -250,6 +261,43 @@ class AStarSearch < Algorithm
   end
 end
 
+class IterativeDepthFirst < Algorithm
+  # This is the same as depth-first but we slowly expand how
+  # deep we're willing to travel. The order of nodes visited is
+  # actually very similar to breadth-first.
+  def solve puzzle
+    @cutoff = 0
+    puts ''
+    begin
+      progress "IDA cutoff: #{@cutoff}"
+      @visited = Set.new
+      @frontier = self.class::Queue.new(@cutoff+=1)
+      @frontier.add self.class::State.new(puzzle)
+      solved = super
+    end until solved
+    puts ''
+    solved
+  end
+
+  def progress!; end
+
+  class Queue < DelegateClass(Array)
+    def initialize cutoff = 1
+      @cutoff = cutoff
+      super []
+    end
+
+    def pop # this is a LIFO stack
+      shift # remove front element
+    end
+
+    def add item
+      if item.path.size <= @cutoff
+        unshift item # Only add to the stack if it's not too deep
+      end
+    end
+  end
+end
 
 
 
