@@ -18,15 +18,16 @@ class Cells < Array
   inline(:C) do |builder|
     builder.c <<-CCode
       int hash() {
-        return  RARRAY_PTR(self)[0] * 1        +
-                RARRAY_PTR(self)[1] * 10       +
-                RARRAY_PTR(self)[2] * 100      +
-                RARRAY_PTR(self)[3] * 1000     +
-                RARRAY_PTR(self)[4] * 10000    +
-                RARRAY_PTR(self)[5] * 100000   +
-                RARRAY_PTR(self)[6] * 1000000  +
-                RARRAY_PTR(self)[7] * 10000000 +
-                RARRAY_PTR(self)[8] * 100000000;
+        VALUE *list = RARRAY_PTR(self);
+        return  list[0] * 1        +
+                list[1] * 10       +
+                list[2] * 100      +
+                list[3] * 1000     +
+                list[4] * 10000    +
+                list[5] * 100000   +
+                list[6] * 1000000  +
+                list[7] * 10000000 +
+                list[8] * 100000000;
       }
 CCode
   end
@@ -426,7 +427,8 @@ end
 path = [:up, :up, :right, :down, :right, :down, :left, :left, :up, :up, :right, :down, :down, :right, :up, :left, :down, :left, :up, :up]
 root = solveable(path)
 
-Algorithm.subclasses.each do |klass|
+#Algorithm.subclasses.each do |klass|
+[IterativeAStar].each do |klass|
   puts klass
   algorithm = klass.new
 
