@@ -8,12 +8,43 @@
 require 'benchmark'
 require 'set'
 require 'delegate'
+require 'inline'
 require 'timeout'
 require 'priority_queue'
 
+class Cells < Array
+  # Give this an optimal hash code for fast Set and Hash lookups.
+  # We get a speedup out of knowing there are 9 distinct integers.
+  inline(:C) do |builder|
+    builder.c <<-CCode
+      int hash() {
+        return  RARRAY_PTR(self)[0] * 1        +
+                RARRAY_PTR(self)[1] * 10       +
+                RARRAY_PTR(self)[2] * 100      +
+                RARRAY_PTR(self)[3] * 1000     +
+                RARRAY_PTR(self)[4] * 10000    +
+                RARRAY_PTR(self)[5] * 100000   +
+                RARRAY_PTR(self)[6] * 1000000  +
+                RARRAY_PTR(self)[7] * 10000000 +
+                RARRAY_PTR(self)[8] * 100000000;
+      }
+CCode
+  end
+  # def hash
+  #  self[0] * 1        +
+  #  self[1] * 10       +
+  #  self[2] * 100      +
+  #  self[3] * 1000     +
+  #  self[4] * 10000    +
+  #  self[5] * 100000   +
+  #  self[6] * 1000000  +
+  #  self[7] * 10000000 +
+  #  self[8] * 100000000
+  #end
+end
 class Puzzle
 
-  Solution = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  Solution = Cells.new [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
   attr_reader :cells
 
@@ -26,14 +57,16 @@ class Puzzle
   end
 
   def distance_to_goal
-    cells.zip(Solution).inject(0) do |sum, (a,b)|
-      sum += manhattan_distance a % 3, (a / 3).to_i,
-                                b % 3, (b / 3).to_i
+    @distance_to_goal ||= begin
+      cells.zip(Solution).inject(0) do |sum, (a,b)|
+        sum += manhattan_distance a % 3, a / 3,
+                                  b % 3, b / 3
+      end
     end
   end
 
   def zero_position
-    cells.index 0
+    @zero_position ||= cells.index 0
   end
 
   # swap the given cell (by index) with the
@@ -47,8 +80,21 @@ class Puzzle
 
   private
 
-  def manhattan_distance x1, y1, x2, y2
-    (x1 - x2).abs + (y1 - y2).abs
+  #def manhattan_distance(x1, y1, x2, y2)
+  #  (x1 - x2).abs + (y1 - y2).abs
+  #end
+  ## Writing this in C because it's 25% of the run time otherwise.
+  ## We want to see how the algorithms chosen affect speed, not how
+  ## Ruby can be slow.
+  inline(:C) do |builder|
+    builder.c "
+      int manhattan_distance(int x1, int y1,
+                             int x2, int y2) {
+        int x = x1 - x2;
+        int y = y1 - y2;
+        return (x < 0 ? -x : x) + ( y < 0 ? -y : y);
+      }
+    "
   end
 end
 
@@ -83,6 +129,7 @@ class Algorithm
       return if frontier.length == 0
       state = frontier.pop
     }
+    puts ''
     state
   end
 
@@ -266,13 +313,13 @@ class IterativeDepthFirst < Algorithm
   # deep we're willing to travel. The order of nodes visited is
   # actually very similar to breadth-first.
   def solve puzzle
-    @cutoff = 0
-    puts ''
+    start = self.class::State.new(puzzle)
+    cutoff = 0
     begin
-      progress "IDA cutoff: #{@cutoff}"
+      progress "IDA cutoff: #{cutoff}"
       @visited = Set.new
-      @frontier = self.class::Queue.new(@cutoff+=1)
-      @frontier.add self.class::State.new(puzzle)
+      @frontier = self.class::Queue.new(cutoff+=1)
+      @frontier.add start
       solved = super
     end until solved
     puts ''
@@ -295,6 +342,65 @@ class IterativeDepthFirst < Algorithm
       if item.path.size <= @cutoff
         unshift item # Only add to the stack if it's not too deep
       end
+    end
+  end
+end
+
+class IterativeAStar < Algorithm
+  Infinity = 1/0.0
+  Queue = Array
+  # We combine the best of A* and the best of
+  # Iterative Deepening Search. We proceed depth-first
+  # with a gradually-increasing cutoff and a priority
+  # queue sorted by both path cost and distance to goal.
+  def solve puzzle
+    start = self.class::State.new(puzzle)
+    max_cost = start.cost
+    begin
+      progress "IDA* max cost: #{max_cost}"
+      @visited = Hash.new
+      solved, max_cost = recurse start, max_cost
+    end until solved
+    puts ''
+    solved
+  end
+
+  def recurse state, max_cost
+    visited[state.puzzle.cells] = state.cost
+    return nil, state.cost if state.cost > max_cost
+    return state, max_cost if state.solution?
+    next_best_cost = Infinity
+    #state.branches.sort_by {|b| b.cost }.each do |branch|
+    #  solved, deeper_cost = recurse branch, max_cost
+    #  return solved, branch.cost if solved
+    #  next_best_cost = [next_best_cost, deeper_cost].min
+    #end
+    solutions = []
+    state.branches.each do |branch|
+      next if (visited[branch.puzzle.cells] || Infinity) < branch.cost
+      solved, deeper_cost = recurse branch, max_cost
+      solutions << [solved, branch.cost] if solved
+      next_best_cost = [next_best_cost, deeper_cost].min
+    end
+    if solutions.any?
+      return solutions.sort_by {|state, cost| cost }.first
+    end
+    return nil, next_best_cost
+  end
+
+  def progress!; end
+
+  class State < Algorithm::State
+    def cost
+      g + h
+    end
+
+    def g
+      path.size
+    end
+
+    def h
+      puzzle.distance_to_goal
     end
   end
 end
@@ -330,7 +436,12 @@ Algorithm.subclasses.each do |klass|
     found = solution.path if solution
   end
   next unless found
-  puts "  found in : #{"%0.4f" % timing.utime} seconds"
-  puts "  we checked: #{algorithm.visited.size} states"
-  puts "  we generated: #{algorithm.frontier.length} as-yet-unexplored states"
+  if found == path
+    print "  optimal solution"
+  else
+    print "  NON-optimal solution (#{found.size} steps instead of #{path.size})"
+  end
+  puts  " found in : #{"%0.4f" % timing.utime} seconds"
+  puts  "  we checked: #{algorithm.visited.size} states"
+  puts  "  we generated: #{algorithm.frontier.length} as-yet-unexplored states"
 end
