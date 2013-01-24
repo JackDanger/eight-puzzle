@@ -12,22 +12,28 @@ require 'inline'
 require 'timeout'
 require 'priority_queue'
 
+Size = ARGV.last == '15' ? 4 : 3
+
 class Cells < Array
   # Give this an optimal hash code for fast Set and Hash lookups.
-  # We get a speedup out of knowing there are 9 distinct integers.
+  # We get a speedup out of knowing there are Size*Size distinct integers.
   inline(:C) do |builder|
     builder.c <<-CCode
       int hash() {
         VALUE *list = RARRAY_PTR(self);
-        return  list[0] * 1        +
-                list[1] * 10       +
-                list[2] * 100      +
-                list[3] * 1000     +
-                list[4] * 10000    +
-                list[5] * 100000   +
-                list[6] * 1000000  +
-                list[7] * 10000000 +
-                list[8] * 100000000;
+        return #{
+          (Size*Size).times.map {|n|
+            "list[#{n}] * 1#{"0"*n}"
+          }.join(" + \n")};
+          // list[0] * 1        +
+          // list[1] * 10       +
+          // list[2] * 100      +
+          // list[3] * 1000     +
+          // list[4] * 10000    +
+          // list[5] * 100000   +
+          // list[6] * 1000000  +
+          // list[7] * 10000000 +
+          // list[8] * 100000000;
       }
 CCode
   end
@@ -45,7 +51,7 @@ CCode
 end
 class Puzzle
 
-  Solution = Cells.new [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  Solution = Cells.new 0.upto(Size*Size-1).to_a
 
   attr_reader :cells
 
@@ -60,8 +66,8 @@ class Puzzle
   def distance_to_goal
     @distance_to_goal ||= begin
       cells.zip(Solution).inject(0) do |sum, (a,b)|
-        sum += manhattan_distance a % 3, a / 3,
-                                  b % 3, b / 3
+        sum += manhattan_distance a % Size, a / Size,
+                                  b % Size, b / Size
       end
     end
   end
@@ -170,17 +176,17 @@ class Algorithm
 
     def branch_toward direction
       blank_position = puzzle.zero_position
-      blankx = blank_position % 3
-      blanky = (blank_position / 3).to_i
+      blankx = blank_position % Size
+      blanky = (blank_position / Size).to_i
       cell = case direction
       when :left
         blank_position - 1 unless 0 == blankx
       when :right
-        blank_position + 1 unless 2 == blankx
+        blank_position + 1 unless (Size-1) == blankx
       when :up
-        blank_position - 3 unless 0 == blanky
+        blank_position - Size unless 0 == blanky
       when :down
-        blank_position + 3 unless 2 == blanky
+        blank_position + Size unless (Size-1) == blanky
       end
       self.class.new puzzle.swap(cell), @path + [direction] if cell
     end
@@ -371,11 +377,6 @@ class IterativeAStar < Algorithm
     return nil, state.cost if state.cost > max_cost
     return state, max_cost if state.solution?
     next_best_cost = Infinity
-    #state.branches.sort_by {|b| b.cost }.each do |branch|
-    #  solved, deeper_cost = recurse branch, max_cost
-    #  return solved, branch.cost if solved
-    #  next_best_cost = [next_best_cost, deeper_cost].min
-    #end
     solutions = []
     state.branches.each do |branch|
       next if (visited[branch.puzzle.cells] || Infinity) < branch.cost
@@ -384,7 +385,7 @@ class IterativeAStar < Algorithm
       next_best_cost = [next_best_cost, deeper_cost].min
     end
     if solutions.any?
-      return solutions.sort_by {|state, cost| cost }.first
+      return solutions.sort_by {|_, cost| cost }.first
     end
     return nil, next_best_cost
   end
@@ -424,8 +425,13 @@ def solveable(path)
   state
 end
 
+state = Algorithm::State.new Puzzle.new(Puzzle::Solution)
+2000.times { state = state.branches.sample }
 path = [:up, :up, :right, :down, :right, :down, :left, :left, :up, :up, :right, :down, :down, :right, :up, :left, :down, :left, :up, :up]
-root = solveable(path)
+p state.path
+p state.puzzle
+#root = solveable(state.path)
+root = state
 
 #Algorithm.subclasses.each do |klass|
 [IterativeAStar].each do |klass|
@@ -438,12 +444,9 @@ root = solveable(path)
     found = solution.path if solution
   end
   next unless found
-  if found == path
-    print "  optimal solution"
-  else
-    print "  NON-optimal solution (#{found.size} steps instead of #{path.size})"
-  end
-  puts  " found in : #{"%0.4f" % timing.utime} seconds"
+  p found
+
+  puts  "  found in : #{"%0.4f" % timing.utime} seconds"
   puts  "  we checked: #{algorithm.visited.size} states"
   puts  "  we generated: #{algorithm.frontier.length} as-yet-unexplored states"
 end
